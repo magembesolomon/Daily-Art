@@ -5,10 +5,10 @@ export interface Artwork {
   date: string;
   description: string;
   imageUrl: string;
-  location?: string;
-  museum?: string;
-  dimensions?: string;
-  likes?: number;
+  location: string;
+  museum: string;
+  dimensions: string;
+  likes: number;
 }
 
 export interface ArtworkCardProps {

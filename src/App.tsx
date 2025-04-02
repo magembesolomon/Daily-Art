@@ -1,141 +1,147 @@
-import React, { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Palette, Compass, Heart } from 'lucide-react';
-import { artworks } from './data/artworks';
+import { artworks, curatedArtworks } from './data/artworks';
+import { DailyArtPage } from './components/DailyArtPage';
 import { ArtworkCard } from './components/ArtworkCard';
 import { ArtworkModal } from './components/ArtworkModal';
 import { DiscoverPage } from './components/DiscoverPage';
-import { FavoritesPage } from './components/FavoritesPage';
+
 import type { Artwork } from './types';
 
 function App() {
   const [selectedArtwork, setSelectedArtwork] = useState<Artwork | null>(null);
+  const [likedArtworks, setLikedArtworks] = useState<Set<string>>(() => {
+    const saved = localStorage.getItem('likedArtworks');
+    return saved ? new Set(JSON.parse(saved)) : new Set();
+  });
   const [currentPage, setCurrentPage] = useState<'daily' | 'discover' | 'favorites'>('daily');
-  const [favorites, setFavorites] = useState<Set<string>>(new Set());
+
   
-  const featuredArtwork = artworks[0];
-  const relatedArtworks = artworks.slice(1);
+  useEffect(() => {
+    localStorage.setItem('likedArtworks', JSON.stringify([...likedArtworks]));
+  }, [likedArtworks]);
 
   const handleLike = (artwork: Artwork) => {
-    setFavorites(prev => {
-      const newFavorites = new Set(prev);
-      if (newFavorites.has(artwork.id)) {
-        newFavorites.delete(artwork.id);
+    setLikedArtworks(prev => {
+      const newLiked = new Set(prev);
+      if (newLiked.has(artwork.id)) {
+        newLiked.delete(artwork.id);
       } else {
-        newFavorites.add(artwork.id);
+        newLiked.add(artwork.id);
       }
-      return newFavorites;
+      return newLiked;
     });
   };
 
-  const handleShare = async (artwork: Artwork) => {
-    try {
-      const response = await fetch(artwork.imageUrl);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${artwork.title.toLowerCase().replace(/\s+/g, '-')}.jpg`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Error downloading image:', error);
+  const handleShare = (artwork: Artwork) => {
+    if (navigator.share) {
+      navigator.share({
+        title: artwork.title,
+        text: `Check out "${artwork.title}" by ${artwork.artist}`,
+        url: window.location.href
+      }).catch(console.error);
+    } else {
+      // Fallback for browsers that don't support Web Share API
+      // Show copy dialog with share URL
+      window.prompt('Copy this link to share:', window.location.href);
     }
   };
 
   const renderContent = () => {
     switch (currentPage) {
       case 'discover':
-        return <DiscoverPage artworks={artworks} onArtworkClick={setSelectedArtwork} />;
-      case 'favorites':
         return (
-          <FavoritesPage
-            artworks={artworks.filter(art => favorites.has(art.id))}
+          <DiscoverPage
+            artworks={artworks}
             onArtworkClick={setSelectedArtwork}
+            onLike={handleLike}
+            onShare={handleShare}
+            likedArtworks={likedArtworks}
           />
         );
-      default:
+      case 'favorites':
         return (
-          <div className="max-w-7xl mx-auto px-4 py-6 space-y-8">
-            <ArtworkCard 
-              artwork={featuredArtwork}
-              onClick={(artwork) => setSelectedArtwork(artwork)}
-              onLike={handleLike}
-              onShare={handleShare}
-              isLiked={favorites.has(featuredArtwork.id)}
-            />
-
-            <div>
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-medium">Related Masterpieces</h2>
-                <button 
-                  className="text-blue-500 text-sm font-medium"
-                  onClick={() => setCurrentPage('discover')}
-                >
-                  See All
-                </button>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                {relatedArtworks.map((artwork) => (
+          <div className="max-w-7xl mx-auto px-4 py-6">
+            <h2 className="text-2xl font-serif mb-6">Your Favorites</h2>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {artworks
+                .filter(artwork => likedArtworks.has(artwork.id))
+                .map(artwork => (
                   <ArtworkCard
                     key={artwork.id}
                     artwork={artwork}
                     variant="small"
-                    onClick={(artwork) => setSelectedArtwork(artwork)}
+                    onClick={setSelectedArtwork}
                     onLike={handleLike}
                     onShare={handleShare}
-                    isLiked={favorites.has(artwork.id)}
+                    isLiked={true}
                   />
                 ))}
-              </div>
             </div>
+            {likedArtworks.size === 0 && (
+              <p className="text-center text-gray-500 mt-8">
+                No favorites yet. Like some artworks to see them here!
+              </p>
+            )}
           </div>
+        );
+      default:
+        return (
+          <DailyArtPage
+            artworks={curatedArtworks}
+            onArtworkClick={setSelectedArtwork}
+            onLike={handleLike}
+            onShare={handleShare}
+            likedArtworks={likedArtworks}
+          />
         );
     }
   };
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      {renderContent()}
-
-      {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 inset-x-0 bg-black/80 backdrop-blur-sm border-t border-white/10">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex justify-around py-4">
-            <button 
-              className="flex flex-col items-center gap-1"
+    <div className="min-h-screen bg-gray-900 text-white">
+      {/* Navigation */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-gray-800 border-t border-gray-700 z-50">
+        <div className="max-w-md mx-auto px-4 py-2">
+          <div className="flex justify-around items-center">
+            <button
               onClick={() => setCurrentPage('daily')}
+              className="flex flex-col items-center p-2"
             >
-              <Palette className={`w-6 h-6 ${currentPage === 'daily' ? 'text-blue-500' : ''}`} />
-              <span className="text-xs">DailyArt</span>
+              <Palette className={`w-6 h-6 ${currentPage === 'daily' ? 'text-blue-500' : 'text-gray-400'}`} />
+              <span className="text-xs mt-1">Daily Art</span>
             </button>
-            <button 
-              className="flex flex-col items-center gap-1"
+            <button
               onClick={() => setCurrentPage('discover')}
+              className="flex flex-col items-center p-2"
             >
-              <Compass className={`w-6 h-6 ${currentPage === 'discover' ? 'text-blue-500' : ''}`} />
-              <span className="text-xs">Discover</span>
+              <Compass className={`w-6 h-6 ${currentPage === 'discover' ? 'text-blue-500' : 'text-gray-400'}`} />
+              <span className="text-xs mt-1">Discover</span>
             </button>
-            <button 
-              className="flex flex-col items-center gap-1"
+            <button
               onClick={() => setCurrentPage('favorites')}
+              className="flex flex-col items-center p-2"
             >
-              <Heart className={`w-6 h-6 ${currentPage === 'favorites' ? 'text-blue-500' : ''}`} />
-              <span className="text-xs">Favorites</span>
+              <Heart className={`w-6 h-6 ${currentPage === 'favorites' ? 'text-blue-500' : 'text-gray-400'}`} />
+              <span className="text-xs mt-1">Favorites</span>
             </button>
           </div>
         </div>
       </nav>
 
-      {/* Artwork Modal */}
+      {/* Main Content */}
+      <main className="pb-20">
+        {renderContent()}
+      </main>
+
+      {/* Modal */}
       {selectedArtwork && (
         <ArtworkModal
           artwork={selectedArtwork}
           onClose={() => setSelectedArtwork(null)}
           onLike={handleLike}
           onShare={handleShare}
-          isLiked={favorites.has(selectedArtwork.id)}
+          isLiked={likedArtworks.has(selectedArtwork.id)}
         />
       )}
     </div>

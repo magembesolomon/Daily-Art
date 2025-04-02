@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Heart, Share2 } from 'lucide-react';
 import { ArtworkCardProps } from '../types';
+import { optimizeImageUrl } from '../utils/imageOptimizer';
 
-export const ArtworkCard: React.FC<ArtworkCardProps> = ({ 
+export const ArtworkCard: React.FC<ArtworkCardProps> = ({
   artwork, 
   onClick, 
   onLike,
@@ -10,6 +11,7 @@ export const ArtworkCard: React.FC<ArtworkCardProps> = ({
   isLiked,
   variant = 'large' 
 }) => {
+  const [isLoaded, setIsLoaded] = useState(false);
   const isLarge = variant === 'large';
 
   return (
@@ -19,10 +21,27 @@ export const ArtworkCard: React.FC<ArtworkCardProps> = ({
         isLarge ? 'aspect-[3/4]' : 'aspect-square'
       }`}
     >
+      {/* Loading placeholder */}
+      <div className={`absolute inset-0 bg-gray-800 animate-pulse transition-opacity duration-500 ${isLoaded ? 'opacity-0' : 'opacity-100'}`} />
+
+      {/* Main image with lazy loading */}
       <img
-        src={artwork.imageUrl}
+        src={optimizeImageUrl(artwork.imageUrl, {
+          width: isLarge ? 800 : 400,
+          format: 'webp',
+          quality: 85
+        })}
         alt={artwork.title}
-        className="w-full h-full object-cover"
+        className={`w-full h-full object-cover transition-opacity duration-500 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
+        loading="lazy"
+        onLoad={() => setIsLoaded(true)}
+        onError={(e) => {
+          // Try fallback URL if the optimized one fails
+          const target = e.target as HTMLImageElement;
+          if (!target.src.includes('original')) {
+            target.src = artwork.imageUrl;
+          }
+        }}
       />
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
       
